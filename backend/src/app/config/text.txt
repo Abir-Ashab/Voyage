@@ -1,0 +1,156 @@
+import React, { useEffect, useState } from "react";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { useLocation } from "react-router-dom";
+import axios from "axios";
+
+// Initialize Google Generative AI API
+const genAI = new GoogleGenerativeAI("AIzaSyA4yQdMZoyFNQT7QS5d0ERQNHBBEGBeVkg");
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+const YourTrip = () => {
+  const [itinerary, setItinerary] = useState("");
+  const [itineraryJson, setItineraryJson] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [requirements, setRequirements] = useState(null);
+
+  const location = useLocation();
+  const { requirementId } = location.state || {}; // Get requirementId from state
+
+  useEffect(() => {
+    if (requirementId) {
+      fetchRequirements(requirementId); // Fetch requirements only if requirementId exists
+    }
+  }, [requirementId]);
+
+  // Function to fetch requirements by ID
+  const fetchRequirements = async (id) => {
+    try {
+      const response = await axios.get(
+        `http://localhost:3500/requirements/get-requirements/671a4f405fea6fb36a7c8c1e`
+      );
+      console.log("Requirement Details:", response.data);
+      setRequirements(response.data); // Store fetched requirements
+      generateItinerary(response.data); // Generate itinerary based on fetched requirements
+    } catch (error) {
+      console.error("Error fetching requirement:", error);
+    }
+  };
+
+  // Extract JSON string from AI response
+  const extractJsonFromString = (text) => {
+    const jsonStartIndex = text.indexOf("[");
+    const jsonEndIndex = text.lastIndexOf("]") + 1;
+
+    if (jsonStartIndex !== -1 && jsonEndIndex !== -1) {
+      const jsonString = text.substring(jsonStartIndex, jsonEndIndex);
+      try {
+        return JSON.parse(jsonString);
+      } catch (error) {
+        console.error("Error parsing JSON: ", error);
+        return null;
+      }
+    } else {
+      console.log("No JSON object found in the text.");
+      return null;
+    }
+  };
+
+  // Function to generate itinerary using the AI model
+  const generateItinerary = async (requirements) => {
+    setLoading(true);
+
+    const {
+      company,
+      boardingPoint,
+      destination,
+      ageConcern,
+      sinceWhen,
+      tillWhen,
+      budgetType,
+      preferredActivities,
+    } = requirements;
+
+    const query = `
+      "Generate a detailed trip itinerary for a group of ${company} from ${
+      boardingPoint?.cityName
+    } to ${destination?.cityName}.
+      The trip starts on ${sinceWhen} and ends on ${tillWhen}. In this trip, ${ageConcern?.join(
+      ", "
+    )} will also join.
+      Please consider their comfort and mobility while planning.
+      The trip should be planned with a ${budgetType} budget, and the preferred activities are ${preferredActivities?.join(
+      ", "
+    )}.
+      Please provide an overview of the destination, a daily itinerary plan, including activities, places to visit, and suggestions for each day.
+      End the trip with a summary of the final day."
+      Generate a plan and from the generated response create a json object from the info that is an array of objects that have:
+      1. Order of day
+      2. Plan for the day (Place to visit, its location, what's special about it, cost in Bangladeshi taka)
+    `;
+
+    try {
+      const result = await model.generateContent(query);
+      const responseText = result.response.text();
+      setItinerary(responseText);
+
+      const jsonString = extractJsonFromString(responseText);
+      setItineraryJson(jsonString);
+      console.log("Extracted JSON:", jsonString); // Log extracted JSON object
+    } catch (error) {
+      console.error("Error generating itinerary:", error);
+      setItinerary("Failed to generate the itinerary. Please try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="container mx-auto mt-8 p-6 rounded-md shadow-lg bg-white">
+      <h1 className="text-2xl font-semibold mb-4">Your Trip Itinerary</h1>
+
+      {!requirementId ? (
+        <div className="text-lg text-gray-600">
+          <p>No trip planned. Please provide a requirement ID.</p>
+        </div>
+      ) : (
+        <>
+          {loading ? (
+            <p className="mt-4 text-lg">
+              Generating your trip itinerary, please wait...
+            </p>
+          ) : (
+            itinerary && (
+              <div className="mt-6 border-t pt-4">
+                <h2 className="text-xl font-semibold mb-2">Your Trip Plan:</h2>
+                <p className="text-lg whitespace-pre-wrap">{itinerary}</p>
+              </div>
+            )
+          )}
+        </>
+      )}
+    </div>
+  );
+};
+
+export default YourTrip;
+
+
+
+
+
+
+
+
+
+import google.generativeai as gemini
+import markdown
+gemini.configure(api_key='AIzaSyCnJXSTdS4w5Il9r7URapwWBAmo2UkruV4')
+
+generative_model = gemini.GenerativeModel('gemini-1.5-flash')
+response = generative_model.generate_content(f"I want to go to cox's bazar from dhaka, generate Itinerary (rough time estimates, roads, restaurant and hotels besides the journey path for passing break time). Also show me the itinerary in the map. Give me result in json format")
+# print(response)
+explanation = markdown.markdown(response.text)
+print(explanation)
+
+
+
